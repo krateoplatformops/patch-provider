@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: foo
+  namespace: default
+  labels:
+    hello: World
+data:
+  values: One
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bar
+  namespace: default
+data:
+  values: Two

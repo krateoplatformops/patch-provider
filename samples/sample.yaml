@@ -1,0 +1,9 @@
+apiVersion: krateo.io/v1alpha1
+kind: Patch
+metadata:
+  name: sample-1
+spec:
+  from: |
+    {{ resource group/version kind namespace name json-path }}
+  to: |
+    {{ cm "default" "foo" data.values }}
