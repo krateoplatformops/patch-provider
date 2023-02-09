@@ -7,14 +7,14 @@ spec:
     objectReference:
       apiVersion: v1
       kind: ConfigMap
-      namespace: default
       name: foo
-    fieldPath: data
+      # namespace: default
+    fieldPath: data.value
   to:
     objectReference:
       apiVersion: v1
       kind: ConfigMap
-      namespace: default
       name: bar
+      # namespace: default
     fieldPath: data.value
-    transform: toJson
+    transform: b64enc
