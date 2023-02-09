@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/krateoplatformops/patch-provider/apis"
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
-	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"github.com/krateoplatformops/patch-provider/internal/patching"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -45,43 +44,44 @@ func main() {
 		panic(err)
 	}
 
-	if cr.Spec.From == nil || cr.Spec.From.ObjectReference == nil {
+	from, err := patching.FromObjectReference(context.TODO(), cl, &cr)
+	if err != nil {
+		panic(err)
+	}
+
+	to, err := patching.ToObjectReference(context.TODO(), cl, &cr)
+	if err != nil {
+		panic(err)
+	}
+
+	diff, err := patching.Diff(&cr, from, to)
+	if err != nil {
+		panic(err)
+	}
+
+	if len(diff) == 0 {
 		return
 	}
 
-	gvk, err := schema.ParseGroupVersion(helpers.StringOrDefault(cr.Spec.From.ObjectReference.ApiVersion, "v1"))
+	fmt.Println(diff)
+
+	if err := patching.Apply(&cr, from, to); err != nil {
+		panic(err)
+	}
+
+	diff, err = patching.Diff(&cr, from, to)
 	if err != nil {
 		panic(err)
 	}
 
-	from := &unstructured.Unstructured{}
-	from.SetGroupVersionKind(gvk.WithKind(cr.Spec.From.ObjectReference.Kind))
-	err = cl.Get(context.TODO(), types.NamespacedName{
-		Name:      cr.Spec.From.ObjectReference.Name,
-		Namespace: helpers.StringOrDefault(cr.Spec.From.ObjectReference.Namespace, "default"),
-	}, from)
-	if err != nil {
-		panic(err)
+	if len(diff) == 0 {
+		return
 	}
 
+	fmt.Println(diff)
+
+	//fmt.Println(cmp.Diff(from, to))
 	/*
-		x := &unstructured.Unstructured{}
-		x.SetGroupVersionKind(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"})
-
-		err = cl.Get(context.TODO(), types.NamespacedName{
-			Name:      "foo",
-			Namespace: "default",
-		}, x)
-		//cm := corev1.ConfigMap{}
-		//err = cl.Get(context.TODO(), types.NamespacedName{
-		//	Name:      "foo",
-		//	Namespace: "default",
-		//}, &cm)
-		if err != nil {
-			panic(err)
-		}
-
-		//fmt.Printf("%+v\n", u)
 
 		//in, err := fieldpath.Pave(u.Object).GetValue("metadata.labels.hello")
 		//if err != nil {

@@ -17,20 +17,12 @@ const (
 // ApplyFromFieldPathPatch patches the "to" resource, using a source field
 // on the "from" resource. Values may be transformed if any are defined on
 // the patch.
-func Apply(p v1alpha1.Patch, from, to *unstructured.Unstructured) error {
-	if p.Spec.From == nil {
-		return errors.Errorf(errFmtRequiredField, "from", p)
-	}
-
-	if p.Spec.From.FieldPath == nil {
+func Apply(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
+	if p.Spec.From == nil || p.Spec.From.FieldPath == nil {
 		return errors.Errorf(errFmtRequiredField, "from.fieldPath", p)
 	}
 
 	// Default to patching the same field.
-	if p.Spec.To == nil {
-		p.Spec.To = p.Spec.From
-	}
-
 	if p.Spec.To.FieldPath == nil {
 		p.Spec.To.FieldPath = p.Spec.From.FieldPath
 	}
@@ -60,7 +52,7 @@ func Apply(p v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 }
 
 // TODO: ResolveTransforms applies a list of transforms to a patch value.
-func ResolveTransforms(c v1alpha1.Patch, input any) (any, error) {
+func ResolveTransforms(c *v1alpha1.Patch, input any) (any, error) {
 	//var err error
 	//for i, t := range c.Transforms {
 	//	if input, err = Resolve(t, input); err != nil {
