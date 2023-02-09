@@ -3,7 +3,17 @@ kind: Patch
 metadata:
   name: sample-1
 spec:
-  from: |
-    {{ resource group/version kind namespace name json-path }}
-  to: |
-    {{ cm "default" "foo" data.values }}
+  from:
+    objectReference:
+      apiVersion: v1
+      kind: ConfigMap
+      namespace: default
+      name: foo
+    fieldPath: data.value
+  to:
+    objectReference:
+      apiVersion: v1
+      kind: ConfigMap
+      namespace: default
+      name: bar
+    fieldPath: data.value

@@ -33,6 +33,10 @@ func fetchUnknown(kc client.Client) func(gv, k string, ns, n string, path string
 			return nil, err
 		}
 
+		if len(path) == 0 {
+			return u.Object, nil
+		}
+
 		in, err := fieldpath.Pave(u.Object).GetValue(path)
 		if err != nil {
 			return nil, err

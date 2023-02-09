@@ -1,11 +1,16 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"os"
-	"text/template"
 
-	"github.com/krateoplatformops/patch-provider/internal/functions"
+	"github.com/krateoplatformops/patch-provider/apis"
+	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
+	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +27,8 @@ func main() {
 		panic(err)
 	}
 
+	apis.AddToScheme(scheme.Scheme)
+
 	restConfig, err := RESTConfigFromBytes(yml, "") //o.kubeconfigContext)
 	if err != nil {
 		panic(err)
@@ -32,21 +39,29 @@ func main() {
 		panic(err)
 	}
 
-	//t := template.Must(template.New("test").
-	//	Funcs(functions.Register(cl)).
-	//	Parse(`{{ secret "kube-system" "bootstrap-token-abcdef" "data.expiration" | b64dec }}`))
-
-	//t := template.Must(template.New("test").
-	//	Funcs(functions.Register(cl)).
-	//	Parse(`{{ api "v1" "ConfigMap" "" "foo" "metadata.labels" }}`))
-
-	t := template.Must(template.New("test").
-		Funcs(functions.Register(cl)).
-		Parse(`{{ cm "" "foo" "metadata.labels" }}`))
-
-	err = t.Execute(os.Stdout, nil)
+	cr := v1alpha1.Patch{}
+	err = cl.Get(context.TODO(), types.NamespacedName{Namespace: "default", Name: "sample-1"}, &cr)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
+	}
+
+	if cr.Spec.From == nil || cr.Spec.From.ObjectReference == nil {
+		return
+	}
+
+	gvk, err := schema.ParseGroupVersion(helpers.StringOrDefault(cr.Spec.From.ObjectReference.ApiVersion, "v1"))
+	if err != nil {
+		panic(err)
+	}
+
+	from := &unstructured.Unstructured{}
+	from.SetGroupVersionKind(gvk.WithKind(cr.Spec.From.ObjectReference.Kind))
+	err = cl.Get(context.TODO(), types.NamespacedName{
+		Name:      cr.Spec.From.ObjectReference.Name,
+		Namespace: helpers.StringOrDefault(cr.Spec.From.ObjectReference.Namespace, "default"),
+	}, from)
+	if err != nil {
+		panic(err)
 	}
 
 	/*
@@ -124,3 +139,19 @@ func RESTConfigFromBytes(data []byte, withContext string) (*rest.Config, error) 
 
 	return restConfig, nil
 }
+
+/*
+func executeTemplate(kc client.Client, gist string) error {
+	buf := bytes.NewBufferString("")
+	tpl := template.New(cr.GetName()).Funcs(functions.Register(cl))
+	tpl, err = tpl.Parse(*cr.Spec.From)
+	if err != nil {
+		panic(err)
+	}
+
+	err = tpl.Execute(os.Stdout, nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+*/

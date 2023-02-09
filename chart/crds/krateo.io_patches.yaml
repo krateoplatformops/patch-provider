@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.1
   creationTimestamp: null
-  name: patches.patch.krateo.io
+  name: patches.krateo.io
 spec:
-  group: patch.krateo.io
+  group: krateo.io
   names:
     categories:
     - krateo
@@ -56,7 +56,24 @@ spec:
               from:
                 description: From is the path of the field on the resource whose value
                   is to be used as input.
-                type: string
+                properties:
+                  fieldPath:
+                    type: string
+                  objectReference:
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                type: object
               mergeOptions:
                 description: MergeOptions specifies merge options on a field path.
                 properties:
@@ -72,7 +89,24 @@ spec:
               to:
                 description: To is the path of the field on the resource whose value
                   will be changed.
-                type: string
+                properties:
+                  fieldPath:
+                    type: string
+                  objectReference:
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                type: object
             type: object
           status:
             description: PatchStatus defines the observed state of Patch

@@ -1,6 +1,6 @@
 // Package v1alpha1 contains API Schema definitions for the github v1alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=patch.krateo.io
+// +groupName=krateo.io
 // +versionName=v1alpha1
 package v1alpha1
 
@@ -13,7 +13,7 @@ import (
 
 // Package type metadata.
 const (
-	Group   = "patch.krateo.io"
+	Group   = "krateo.io"
 	Version = "v1alpha1"
 )
 

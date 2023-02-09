@@ -6,6 +6,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type ObjectReference struct {
+	// +optional
+	ApiVersion *string `json:"apiVersion,omitempty"`
+
+	Kind string `json:"kind"`
+
+	// +optional
+	Namespace *string `json:"namespace,omitempty"`
+
+	Name string `json:"name"`
+}
+
+type FieldObjectReference struct {
+	ObjectReference *ObjectReference `json:"objectReference,omitempty"`
+
+	// +optional
+	FieldPath *string `json:"fieldPath,omitempty"`
+}
+
 // PatchSpec defines the desired state of Patch
 type PatchSpec struct {
 	prv1.ManagedSpec `json:",inline"`
@@ -13,11 +32,11 @@ type PatchSpec struct {
 	// From is the path of the field on the resource whose value is
 	// to be used as input.
 	// +optional
-	From *string `json:"from,omitempty"`
+	From *FieldObjectReference `json:"from,omitempty"`
 
 	// To is the path of the field on the resource whose value will be changed.
 	// +optional
-	To *string `json:"to,omitempty"`
+	To *FieldObjectReference `json:"to,omitempty"`
 
 	// MergeOptions specifies merge options on a field path.
 	// +optional

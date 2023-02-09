@@ -3,10 +3,8 @@ kind: ConfigMap
 metadata:
   name: foo
   namespace: default
-  labels:
-    hello: World
 data:
-  values: One
+  value: Foo
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,4 +12,4 @@ metadata:
   name: bar
   namespace: default
 data:
-  values: Two
+  value: Bar

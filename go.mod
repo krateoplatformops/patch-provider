@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/google/go-cmp v0.5.9
 	github.com/imdario/mergo v0.3.6
-	github.com/krateoplatformops/provider-runtime v0.2.8
+	github.com/krateoplatformops/provider-runtime v0.2.9
 	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1

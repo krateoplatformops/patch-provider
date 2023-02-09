@@ -19,7 +19,11 @@ const (
 // the patch.
 func Apply(p v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 	if p.Spec.From == nil {
-		return errors.Errorf(errFmtRequiredField, "From", p)
+		return errors.Errorf(errFmtRequiredField, "from", p)
+	}
+
+	if p.Spec.From.FieldPath == nil {
+		return errors.Errorf(errFmtRequiredField, "from.fieldPath", p)
 	}
 
 	// Default to patching the same field.
@@ -27,7 +31,11 @@ func Apply(p v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 		p.Spec.To = p.Spec.From
 	}
 
-	in, err := fieldpath.Pave(from.Object).GetValue(*p.Spec.From)
+	if p.Spec.To.FieldPath == nil {
+		p.Spec.To.FieldPath = p.Spec.From.FieldPath
+	}
+
+	in, err := fieldpath.Pave(from.Object).GetValue(*p.Spec.From.FieldPath)
 	if err != nil {
 		return err
 	}
@@ -44,11 +52,11 @@ func Apply(p v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 	}
 
 	// Patch all expanded fields if the ToFieldPath contains wildcards
-	if strings.Contains(*p.Spec.To, "[*]") {
-		return patchFieldValueToMultiple(*p.Spec.To, out, to, mo)
+	if strings.Contains(*p.Spec.To.FieldPath, "[*]") {
+		return patchFieldValueToMultiple(*p.Spec.To.FieldPath, out, to, mo)
 	}
 
-	return fieldpath.Pave(to.Object).MergeValue(*p.Spec.To, out, mo)
+	return fieldpath.Pave(to.Object).MergeValue(*p.Spec.To.FieldPath, out, mo)
 }
 
 // TODO: ResolveTransforms applies a list of transforms to a patch value.
