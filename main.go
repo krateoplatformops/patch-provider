@@ -60,61 +60,20 @@ func main() {
 	}
 
 	if len(diff) == 0 {
+		fmt.Println("Patch not needed.")
 		return
 	}
 
 	fmt.Println(diff)
 
-	if err := patching.Apply(&cr, from, to); err != nil {
+	if err := patching.Patch(&cr, from, to); err != nil {
 		panic(err)
 	}
 
-	diff, err = patching.Diff(&cr, from, to)
-	if err != nil {
+	if err := patching.Apply(context.TODO(), cl, to); err != nil {
 		panic(err)
 	}
 
-	if len(diff) == 0 {
-		return
-	}
-
-	fmt.Println(diff)
-
-	//fmt.Println(cmp.Diff(from, to))
-	/*
-
-		//in, err := fieldpath.Pave(u.Object).GetValue("metadata.labels.hello")
-		//if err != nil {
-		//	panic(err)
-		//}
-		//fmt.Println("==>", in)
-
-		y := x.DeepCopy()
-		err = patching.Apply(v1alpha1.Patch{
-			Spec: v1alpha1.PatchSpec{
-				From: helpers.StringPtr("metadata.labels.hello"),
-				To:   helpers.StringPtr("metadata.labels.patched-by"),
-			},
-		}, x, y)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(cmp.Diff(x, y))
-		/*
-				cm.Labels["hello"] = "krateo"
-				cm.Labels["patched-by"] = "pinco-pallo"
-
-			applicator := resource.NewAPIPatchingApplicator(cl)
-			if err := applicator.Apply(context.TODO(), y); err != nil {
-				panic(err)
-			}
-
-			//gv, err := schema.ParseGroupVersion("krateo.io/v1alpha1")
-			//if err != nil {
-			//	panic(err)
-			//}
-	*/
 }
 
 func RESTConfigFromBytes(data []byte, withContext string) (*rest.Config, error) {
@@ -139,19 +98,3 @@ func RESTConfigFromBytes(data []byte, withContext string) (*rest.Config, error) 
 
 	return restConfig, nil
 }
-
-/*
-func executeTemplate(kc client.Client, gist string) error {
-	buf := bytes.NewBufferString("")
-	tpl := template.New(cr.GetName()).Funcs(functions.Register(cl))
-	tpl, err = tpl.Parse(*cr.Spec.From)
-	if err != nil {
-		panic(err)
-	}
-
-	err = tpl.Execute(os.Stdout, nil)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-*/

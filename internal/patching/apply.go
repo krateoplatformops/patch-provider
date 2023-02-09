@@ -1,101 +1,44 @@
 package patching
 
 import (
-	"bytes"
-	"fmt"
-	"strings"
-	"text/template"
+	"context"
+	"encoding/json"
 
-	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
-	"github.com/krateoplatformops/patch-provider/internal/fieldpath"
-	"github.com/krateoplatformops/patch-provider/internal/functions"
-	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	errFmtRequiredField            = "%s is required by type %T"
-	errFmtExpandingArrayFieldPaths = "cannot expand To %s"
-)
-
-// ApplyFromFieldPathPatch patches the "to" resource, using a source field
-// on the "from" resource. Values may be transformed if any are defined on
-// the patch.
-func Apply(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
-	if p.Spec.From == nil || p.Spec.From.FieldPath == nil {
-		return errors.Errorf(errFmtRequiredField, "from.fieldPath", p)
+// Apply changes to the supplied object. The object will be created if it does
+// not exist, or patched if it does. If the object does exist, it will only be
+// patched if the passed object has the same or an empty resource version.
+func Apply(ctx context.Context, kc client.Client, o client.Object) error {
+	m, ok := o.(metav1.Object)
+	if !ok {
+		return errors.New("cannot access object metadata")
 	}
 
-	// Default to patching the same field.
-	if p.Spec.To.FieldPath == nil {
-		p.Spec.To.FieldPath = p.Spec.From.FieldPath
+	if m.GetName() == "" && m.GetGenerateName() != "" {
+		return errors.Wrap(kc.Create(ctx, o), "cannot create object")
 	}
 
-	fromFieldPath := helpers.String(p.Spec.From.FieldPath)
-	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
+	desired := o.DeepCopyObject()
+
+	err := kc.Get(ctx, types.NamespacedName{Name: m.GetName(), Namespace: m.GetNamespace()}, o)
+	if kerrors.IsNotFound(err) {
+		return errors.Wrap(kc.Create(ctx, o), "cannot create object")
+	}
 	if err != nil {
-		return err
+		return errors.Wrap(err, "cannot get object")
 	}
 
-	// Apply transform pipeline
-	out, err := resolveTransform(p, in)
-	if err != nil {
-		return err
-	}
-
-	var mo *v1alpha1.MergeOptions
-	if p.Spec.MergeOptions != nil {
-		mo = p.Spec.MergeOptions
-	}
-
-	// Patch all expanded fields if the ToFieldPath contains wildcards
-	toFieldPath := helpers.String(p.Spec.To.FieldPath)
-	if strings.Contains(toFieldPath, "[*]") {
-		return patchFieldValueToMultiple(toFieldPath, out, to, mo)
-	}
-
-	return fieldpath.Pave(to.Object).MergeValue(toFieldPath, out, mo)
+	return errors.Wrap(kc.Patch(ctx, o, &patch{desired}), "cannot patch object")
 }
 
-func resolveTransform(cr *v1alpha1.Patch, input any) (any, error) {
-	key := helpers.String(cr.Spec.To.Transform)
-	if len(key) == 0 {
-		return input, nil
-	}
+type patch struct{ from runtime.Object }
 
-	buf := bytes.NewBufferString("")
-	tpl := template.New(cr.GetName()).Funcs(functions.Map())
-	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", key))
-	if err != nil {
-		return nil, err
-	}
-
-	err = tpl.Execute(buf, input)
-
-	return buf.String(), err
-}
-
-// patchFieldValueToMultiple, given a path with wildcards in an array index,
-// expands the arrays paths in the "to" object and patches the value into each
-// of the resulting fields, returning any errors as they occur.
-func patchFieldValueToMultiple(fieldPath string, value any, to *unstructured.Unstructured, mo *v1alpha1.MergeOptions) error {
-	paved := fieldpath.Pave(to.UnstructuredContent())
-
-	arrayFieldPaths, err := paved.ExpandWildcards(fieldPath)
-	if err != nil {
-		return err
-	}
-
-	if len(arrayFieldPaths) == 0 {
-		return errors.Errorf(errFmtExpandingArrayFieldPaths, fieldPath)
-	}
-
-	for _, field := range arrayFieldPaths {
-		if err := paved.MergeValue(field, value, mo); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+func (p *patch) Type() types.PatchType                { return types.MergePatchType }
+func (p *patch) Data(_ client.Object) ([]byte, error) { return json.Marshal(p.from) }
