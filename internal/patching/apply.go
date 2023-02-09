@@ -1,10 +1,15 @@
 package patching
 
 import (
+	"bytes"
+	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
 	"github.com/krateoplatformops/patch-provider/internal/fieldpath"
+	"github.com/krateoplatformops/patch-provider/internal/functions"
+	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -27,7 +32,14 @@ func Apply(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 		p.Spec.To.FieldPath = p.Spec.From.FieldPath
 	}
 
-	in, err := fieldpath.Pave(from.Object).GetValue(*p.Spec.From.FieldPath)
+	fromFieldPath := helpers.String(p.Spec.From.FieldPath)
+	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
+	if err != nil {
+		return err
+	}
+
+	// Apply transform pipeline
+	out, err := resolveTransform(p, in)
 	if err != nil {
 		return err
 	}
@@ -37,30 +49,31 @@ func Apply(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 		mo = p.Spec.MergeOptions
 	}
 
-	// Apply transform pipeline
-	out, err := ResolveTransforms(p, in)
-	if err != nil {
-		return err
-	}
-
 	// Patch all expanded fields if the ToFieldPath contains wildcards
-	if strings.Contains(*p.Spec.To.FieldPath, "[*]") {
-		return patchFieldValueToMultiple(*p.Spec.To.FieldPath, out, to, mo)
+	toFieldPath := helpers.String(p.Spec.To.FieldPath)
+	if strings.Contains(toFieldPath, "[*]") {
+		return patchFieldValueToMultiple(toFieldPath, out, to, mo)
 	}
 
-	return fieldpath.Pave(to.Object).MergeValue(*p.Spec.To.FieldPath, out, mo)
+	return fieldpath.Pave(to.Object).MergeValue(toFieldPath, out, mo)
 }
 
-// TODO: ResolveTransforms applies a list of transforms to a patch value.
-func ResolveTransforms(c *v1alpha1.Patch, input any) (any, error) {
-	//var err error
-	//for i, t := range c.Transforms {
-	//	if input, err = Resolve(t, input); err != nil {
-	//		// TODO(negz): Including the type might help find the offending transform faster.
-	//		return nil, errors.Wrapf(err, errFmtTransformAtIndex, i)
-	//	}
-	//}
-	return input, nil
+func resolveTransform(cr *v1alpha1.Patch, input any) (any, error) {
+	key := helpers.String(cr.Spec.To.Transform)
+	if len(key) == 0 {
+		return input, nil
+	}
+
+	buf := bytes.NewBufferString("")
+	tpl := template.New(cr.GetName()).Funcs(functions.Map())
+	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", key))
+	if err != nil {
+		return nil, err
+	}
+
+	err = tpl.Execute(buf, input)
+
+	return buf.String(), err
 }
 
 // patchFieldValueToMultiple, given a path with wildcards in an array index,

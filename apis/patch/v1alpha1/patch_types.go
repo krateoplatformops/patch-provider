@@ -23,6 +23,9 @@ type FieldObjectReference struct {
 
 	// +optional
 	FieldPath *string `json:"fieldPath,omitempty"`
+
+	// +optional
+	Transform *string `json:"transform,omitempty"`
 }
 
 // PatchSpec defines the desired state of Patch

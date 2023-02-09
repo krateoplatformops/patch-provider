@@ -16,7 +16,18 @@ import (
 )
 
 func Diff(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) (string, error) {
-	in, err := fieldpath.Pave(from.Object).GetValue(helpers.String(cr.Spec.From.FieldPath))
+	if cr.Spec.From == nil || cr.Spec.From.FieldPath == nil {
+		return "", errors.Errorf(errFmtRequiredField, "from.fieldPath", cr)
+	}
+
+	fromFieldPath := helpers.String(cr.Spec.From.FieldPath)
+	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
+	if err != nil {
+		return "", err
+	}
+
+	// eventually resolve transform
+	in, err = resolveTransform(cr, in)
 	if err != nil {
 		return "", err
 	}

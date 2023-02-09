@@ -6,7 +6,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func Register(kc client.Client) template.FuncMap {
+func Register2(kc client.Client) template.FuncMap {
 	return template.FuncMap(map[string]any{
 		// Kubernetes Resources
 		"api":    fetchUnknown(kc),
@@ -17,4 +17,13 @@ func Register(kc client.Client) template.FuncMap {
 		"b64enc": base64encode,
 		"b64dec": base64decode,
 	})
+}
+
+func Map() map[string]any {
+	return map[string]any{
+		// Encoding:
+		"b64enc": base64encode,
+		"b64dec": base64decode,
+		"toJson": toJson,
+	}
 }

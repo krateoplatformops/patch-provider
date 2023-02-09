@@ -9,7 +9,7 @@ spec:
       kind: ConfigMap
       namespace: default
       name: foo
-    fieldPath: data.value
+    fieldPath: data
   to:
     objectReference:
       apiVersion: v1
@@ -17,3 +17,4 @@ spec:
       namespace: default
       name: bar
     fieldPath: data.value
+    transform: toJson
