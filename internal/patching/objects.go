@@ -53,7 +53,7 @@ func resolveObjectReference(ctx context.Context, kc client.Client, ref *v1alpha1
 	return res, err
 }
 
-func transformEventually(cr *v1alpha1.Patch, input any) (any, error) {
+func TransformEventually(cr *v1alpha1.Patch, input any) (any, error) {
 	fn := helpers.String(cr.Spec.To.Transform)
 	if len(fn) == 0 {
 		fn = helpers.String(cr.Spec.From.Transform)

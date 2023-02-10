@@ -31,13 +31,12 @@ func main() {
 			DefaultEnvars()
 		debug = app.Flag("debug", "Run with debug logging.").Short('d').
 			OverrideDefaultFromEnvar(fmt.Sprintf("%s_DEBUG", envVarPrefix)).
-			Default("true").
 			Bool()
 		syncPeriod = app.Flag("sync", "Controller manager sync period such as 300ms, 1.5h, or 2h45m").Short('s').
 				Default("1h").
 				Duration()
 		pollInterval = app.Flag("poll", "Poll interval controls how often an individual resource should be checked for drift.").
-				Default("3m").
+				Default("2m").
 				OverrideDefaultFromEnvar(fmt.Sprintf("%s_POLL_INTERVAL", envVarPrefix)).
 				Duration()
 		maxReconcileRate = app.Flag("max-reconcile-rate", "The global maximum rate per second at which resources may checked for drift from the desired state.").

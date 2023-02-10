@@ -39,7 +39,7 @@ func Patch(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstruct
 		return to, err
 	}
 
-	out, err := transformEventually(cr, in)
+	out, err := TransformEventually(cr, in)
 	if err != nil {
 		return to, err
 	}

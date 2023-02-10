@@ -99,6 +99,10 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
 	}
 
+	if in, err = patching.TransformEventually(cr, in); err != nil {
+		return managed.ExternalObservation{}, err
+	}
+
 	// if 'to' fieldPath is not specified, use the same 'from' fieldPath.
 	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.To.FieldPath))
 	out, err := fieldpath.Pave(to.Object).GetValue(toFieldPath)
