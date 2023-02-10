@@ -1,95 +1,33 @@
 package patching
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"text/template"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
-	"github.com/krateoplatformops/patch-provider/internal/fieldpath"
+	"github.com/krateoplatformops/patch-provider/internal/functions"
 	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func FromFieldPathValue(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (any, error) {
+func From(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstructured.Unstructured, error) {
 	if cr.Spec.From == nil || cr.Spec.From.ObjectReference == nil {
-		return nil, errors.Errorf(errFmtRequiredField, "from.objectReference", "spec")
-	}
-
-	if cr.Spec.From.FieldPath == nil {
-		return nil, errors.Errorf(errFmtRequiredField, "from.fieldPath", "spec")
-	}
-
-	from, err := resolveObjectReference(ctx, kc, cr.Spec.From.ObjectReference)
-	if err != nil {
-		return nil, err
-	}
-
-	return fieldpath.Pave(from.Object).
-		GetValue(helpers.String(cr.Spec.From.FieldPath))
-}
-
-func ToFieldPathValue(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (any, error) {
-	if cr.Spec.To == nil || cr.Spec.To.ObjectReference == nil {
-		return nil, errors.Errorf(errFmtRequiredField, "to.objectReference", "spec")
-	}
-
-	to, err := resolveObjectReference(ctx, kc, cr.Spec.To.ObjectReference)
-	if err != nil {
-		return nil, err
-	}
-
-	// if 'to' fieldPath is not specified, use the same 'from' fieldPath.
-	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.To.FieldPath))
-	val, err := fieldpath.Pave(to.Object).GetValue(toFieldPath)
-	if err != nil {
-		return nil, err
-	}
-
-	return transformEventually(cr, val)
-}
-
-func Diff(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) (string, error) {
-	fromFieldPath := helpers.String(cr.Spec.From.FieldPath)
-	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
-	if err != nil {
-		return "", err
-	}
-
-	// eventually resolve transform
-	in, err = transformEventually(cr, in)
-	if err != nil {
-		return "", err
-	}
-
-	// Default to patching the same field.
-	if cr.Spec.To.FieldPath == nil {
-		cr.Spec.To.FieldPath = cr.Spec.From.FieldPath
-	}
-
-	out, err := fieldpath.Pave(to.Object).GetValue(helpers.String(cr.Spec.To.FieldPath))
-	if err != nil {
-		return "", err
-	}
-
-	return cmp.Diff(in, out), nil
-}
-
-func FromObjectReference(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstructured.Unstructured, error) {
-	if cr.Spec.From == nil || cr.Spec.From.ObjectReference == nil {
-		return nil, errors.New("missing 'from' objectReference")
+		return nil, errors.New("from.objectReference is required")
 	}
 
 	return resolveObjectReference(ctx, kc, cr.Spec.From.ObjectReference)
 }
 
-func ToObjectReference(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstructured.Unstructured, error) {
+func To(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstructured.Unstructured, error) {
 	if cr.Spec.To == nil || cr.Spec.To.ObjectReference == nil {
-		return resolveObjectReference(ctx, kc, cr.Spec.From.ObjectReference)
+		return nil, errors.New("to.objectReference is required")
 	}
 
 	return resolveObjectReference(ctx, kc, cr.Spec.To.ObjectReference)
@@ -113,4 +51,24 @@ func resolveObjectReference(ctx context.Context, kc client.Client, ref *v1alpha1
 	}, res)
 
 	return res, err
+}
+
+func transformEventually(cr *v1alpha1.Patch, input any) (any, error) {
+	fn := helpers.String(cr.Spec.To.Transform)
+	if len(fn) == 0 {
+		fn = helpers.String(cr.Spec.From.Transform)
+	}
+	if len(fn) == 0 {
+		return input, nil
+	}
+
+	buf := bytes.NewBufferString("")
+	tpl := template.New(cr.GetName()).Funcs(functions.Map())
+	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", fn))
+	if err != nil {
+		return nil, err
+	}
+
+	err = tpl.Execute(buf, input)
+	return buf.String(), err
 }

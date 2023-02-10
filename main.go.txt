@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/krateoplatformops/patch-provider/apis"
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
-	"github.com/krateoplatformops/patch-provider/internal/patching"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -41,36 +39,6 @@ func main() {
 	cr := v1alpha1.Patch{}
 	err = cl.Get(context.TODO(), types.NamespacedName{Namespace: "default", Name: "sample-1"}, &cr)
 	if err != nil {
-		panic(err)
-	}
-
-	from, err := patching.FromObjectReference(context.TODO(), cl, &cr)
-	if err != nil {
-		panic(err)
-	}
-
-	to, err := patching.ToObjectReference(context.TODO(), cl, &cr)
-	if err != nil {
-		panic(err)
-	}
-
-	diff, err := patching.Diff(&cr, from, to)
-	if err != nil {
-		panic(err)
-	}
-
-	if len(diff) == 0 {
-		fmt.Println("Patch not needed.")
-		return
-	}
-
-	fmt.Println(diff)
-
-	if err := patching.Patch(&cr, from, to); err != nil {
-		panic(err)
-	}
-
-	if err := patching.Apply(context.TODO(), cl, to); err != nil {
 		panic(err)
 	}
 

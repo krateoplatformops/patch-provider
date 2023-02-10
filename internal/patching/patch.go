@@ -1,17 +1,15 @@
 package patching
 
 import (
-	"bytes"
-	"fmt"
+	"context"
 	"strings"
-	"text/template"
 
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
 	"github.com/krateoplatformops/patch-provider/internal/fieldpath"
-	"github.com/krateoplatformops/patch-provider/internal/functions"
 	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -22,29 +20,29 @@ const (
 // Patch patches the "to" resource, using a source field
 // on the "from" resource. Values may be transformed if any are defined on
 // the patch.
-func Patch(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
-	if cr.Spec.From == nil {
-		return errors.Errorf(errFmtRequiredField, "from.objectReference", "spec")
-	}
-
+func Patch(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (*unstructured.Unstructured, error) {
 	if cr.Spec.From.FieldPath == nil {
-		return errors.Errorf(errFmtRequiredField, "from.fieldPath", "spec")
+		return nil, errors.New("from.fieldPath is required")
 	}
 
-	// Default to patching the same field.
-	if cr.Spec.To.FieldPath == nil {
-		cr.Spec.To.FieldPath = cr.Spec.From.FieldPath
-	}
-
-	fromFieldPath := helpers.String(cr.Spec.From.FieldPath)
-	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
+	from, err := From(ctx, kc, cr)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	to, err := To(ctx, kc, cr)
+	if err != nil {
+		return nil, err
+	}
+
+	in, err := fieldpath.Pave(from.Object).GetValue(helpers.String(cr.Spec.From.FieldPath))
+	if err != nil {
+		return to, err
 	}
 
 	out, err := transformEventually(cr, in)
 	if err != nil {
-		return err
+		return to, err
 	}
 
 	var mo *v1alpha1.MergeOptions
@@ -53,29 +51,12 @@ func Patch(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 	}
 
 	// Patch all expanded fields if the ToFieldPath contains wildcards
-	toFieldPath := helpers.String(cr.Spec.To.FieldPath)
+	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.From.FieldPath))
 	if strings.Contains(toFieldPath, "[*]") {
-		return patchFieldValueToMultiple(toFieldPath, out, to, mo)
+		return to, patchFieldValueToMultiple(toFieldPath, out, to, mo)
 	}
 
-	return fieldpath.Pave(to.Object).MergeValue(toFieldPath, out, mo)
-}
-
-func transformEventually(cr *v1alpha1.Patch, input any) (any, error) {
-	fn := helpers.String(cr.Spec.To.Transform)
-	if len(fn) == 0 {
-		return input, nil
-	}
-
-	buf := bytes.NewBufferString("")
-	tpl := template.New(cr.GetName()).Funcs(functions.Map())
-	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", fn))
-	if err != nil {
-		return nil, err
-	}
-
-	err = tpl.Execute(buf, input)
-	return buf.String(), err
+	return to, fieldpath.Pave(to.Object).MergeValue(toFieldPath, out, mo)
 }
 
 // patchFieldValueToMultiple, given a path with wildcards in an array index,

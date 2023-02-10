@@ -13,6 +13,7 @@ import (
 
 	"github.com/krateoplatformops/provider-runtime/pkg/controller"
 	"github.com/krateoplatformops/provider-runtime/pkg/event"
+	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
 	"github.com/krateoplatformops/provider-runtime/pkg/ratelimiter"
 	"github.com/krateoplatformops/provider-runtime/pkg/reconciler/managed"
@@ -79,12 +80,28 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotPatch)
 	}
 
-	in, err := patching.FromFieldPathValue(ctx, e.kube, cr)
+	if cr.Spec.From.FieldPath == nil {
+		return managed.ExternalObservation{}, errors.New("from.fieldPath is required")
+	}
+
+	from, err := patching.From(ctx, e.kube, cr)
+	if err != nil {
+		return managed.ExternalObservation{}, resource.IgnoreNotFound(err)
+	}
+
+	to, err := patching.To(ctx, e.kube, cr)
+	if err != nil {
+		return managed.ExternalObservation{}, resource.IgnoreNotFound(err)
+	}
+
+	in, err := fieldpath.Pave(from.Object).GetValue(helpers.String(cr.Spec.From.FieldPath))
 	if err != nil {
 		return managed.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
 	}
 
-	out, err := patching.ToFieldPathValue(ctx, e.kube, cr)
+	// if 'to' fieldPath is not specified, use the same 'from' fieldPath.
+	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.To.FieldPath))
+	out, err := fieldpath.Pave(to.Object).GetValue(toFieldPath)
 	if err != nil {
 		return managed.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
 	}
@@ -105,24 +122,21 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 }
 
 func (e *external) Create(ctx context.Context, mg resource.Managed) error {
-	/*
-		cr, ok := mg.(*v1alpha1.Patch)
-		if !ok {
-			return errors.New(errNotPatch)
-		}
-
-		cr.SetConditions(rtv1.Creating())
-
-		spec := cr.Spec.DeepCopy()
-
-		e.log.Debug("Repo created", "org", spec.Org, "name", spec.Name)
-		e.rec.Eventf(cr, corev1.EventTypeNormal, "RepoCreated", "Repo '%s/%s' created", spec.Org, spec.Name)
-	*/
-	return nil
+	return nil // noop
 }
 
 func (e *external) Update(ctx context.Context, mg resource.Managed) error {
-	return nil // noop
+	cr, ok := mg.(*v1alpha1.Patch)
+	if !ok {
+		return errors.New(errNotPatch)
+	}
+
+	obj, err := patching.Patch(ctx, e.kube, cr)
+	if err != nil {
+		return err
+	}
+
+	return patching.Apply(ctx, e.kube, obj)
 }
 
 func (e *external) Delete(ctx context.Context, mg resource.Managed) error {
