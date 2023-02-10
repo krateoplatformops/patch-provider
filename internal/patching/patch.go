@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	errFmtRequiredField            = "%s is required by type %s"
 	errFmtExpandingArrayFieldPaths = "cannot expand To %s"
 )
 
