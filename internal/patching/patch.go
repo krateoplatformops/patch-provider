@@ -15,41 +15,45 @@ import (
 )
 
 const (
-	errFmtRequiredField            = "%s is required by type %T"
+	errFmtRequiredField            = "%s is required by type %s"
 	errFmtExpandingArrayFieldPaths = "cannot expand To %s"
 )
 
 // Patch patches the "to" resource, using a source field
 // on the "from" resource. Values may be transformed if any are defined on
 // the patch.
-func Patch(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
-	if p.Spec.From == nil || p.Spec.From.FieldPath == nil {
-		return errors.Errorf(errFmtRequiredField, "from.fieldPath", p)
+func Patch(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
+	if cr.Spec.From == nil {
+		return errors.Errorf(errFmtRequiredField, "from.objectReference", "spec")
+	}
+
+	if cr.Spec.From.FieldPath == nil {
+		return errors.Errorf(errFmtRequiredField, "from.fieldPath", "spec")
 	}
 
 	// Default to patching the same field.
-	if p.Spec.To.FieldPath == nil {
-		p.Spec.To.FieldPath = p.Spec.From.FieldPath
+	if cr.Spec.To.FieldPath == nil {
+		cr.Spec.To.FieldPath = cr.Spec.From.FieldPath
 	}
 
-	fromFieldPath := helpers.String(p.Spec.From.FieldPath)
+	fromFieldPath := helpers.String(cr.Spec.From.FieldPath)
 	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
 	if err != nil {
 		return err
 	}
 
-	out, err := resolveTransform(p, in)
+	out, err := transformEventually(cr, in)
 	if err != nil {
 		return err
 	}
 
 	var mo *v1alpha1.MergeOptions
-	if p.Spec.MergeOptions != nil {
-		mo = p.Spec.MergeOptions
+	if cr.Spec.MergeOptions != nil {
+		mo = cr.Spec.MergeOptions
 	}
 
 	// Patch all expanded fields if the ToFieldPath contains wildcards
-	toFieldPath := helpers.String(p.Spec.To.FieldPath)
+	toFieldPath := helpers.String(cr.Spec.To.FieldPath)
 	if strings.Contains(toFieldPath, "[*]") {
 		return patchFieldValueToMultiple(toFieldPath, out, to, mo)
 	}
@@ -57,15 +61,15 @@ func Patch(p *v1alpha1.Patch, from, to *unstructured.Unstructured) error {
 	return fieldpath.Pave(to.Object).MergeValue(toFieldPath, out, mo)
 }
 
-func resolveTransform(cr *v1alpha1.Patch, input any) (any, error) {
-	key := helpers.String(cr.Spec.To.Transform)
-	if len(key) == 0 {
+func transformEventually(cr *v1alpha1.Patch, input any) (any, error) {
+	fn := helpers.String(cr.Spec.To.Transform)
+	if len(fn) == 0 {
 		return input, nil
 	}
 
 	buf := bytes.NewBufferString("")
 	tpl := template.New(cr.GetName()).Funcs(functions.Map())
-	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", key))
+	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", fn))
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,44 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+func FromFieldPathValue(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (any, error) {
+	if cr.Spec.From == nil || cr.Spec.From.ObjectReference == nil {
+		return nil, errors.Errorf(errFmtRequiredField, "from.objectReference", "spec")
+	}
+
+	if cr.Spec.From.FieldPath == nil {
+		return nil, errors.Errorf(errFmtRequiredField, "from.fieldPath", "spec")
+	}
+
+	from, err := resolveObjectReference(ctx, kc, cr.Spec.From.ObjectReference)
+	if err != nil {
+		return nil, err
+	}
+
+	return fieldpath.Pave(from.Object).
+		GetValue(helpers.String(cr.Spec.From.FieldPath))
+}
+
+func ToFieldPathValue(ctx context.Context, kc client.Client, cr *v1alpha1.Patch) (any, error) {
+	if cr.Spec.To == nil || cr.Spec.To.ObjectReference == nil {
+		return nil, errors.Errorf(errFmtRequiredField, "to.objectReference", "spec")
+	}
+
+	to, err := resolveObjectReference(ctx, kc, cr.Spec.To.ObjectReference)
+	if err != nil {
+		return nil, err
+	}
+
+	// if 'to' fieldPath is not specified, use the same 'from' fieldPath.
+	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.To.FieldPath))
+	val, err := fieldpath.Pave(to.Object).GetValue(toFieldPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return transformEventually(cr, val)
+}
+
 func Diff(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) (string, error) {
 	fromFieldPath := helpers.String(cr.Spec.From.FieldPath)
 	in, err := fieldpath.Pave(from.Object).GetValue(fromFieldPath)
@@ -23,7 +61,7 @@ func Diff(cr *v1alpha1.Patch, from, to *unstructured.Unstructured) (string, erro
 	}
 
 	// eventually resolve transform
-	in, err = resolveTransform(cr, in)
+	in, err = transformEventually(cr, in)
 	if err != nil {
 		return "", err
 	}

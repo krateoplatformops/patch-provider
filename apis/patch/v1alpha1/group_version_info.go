@@ -26,10 +26,10 @@ var (
 )
 
 var (
-	RepoKind             = reflect.TypeOf(Patch{}).Name()
-	RepoGroupKind        = schema.GroupKind{Group: Group, Kind: RepoKind}.String()
-	RepoKindAPIVersion   = RepoKind + "." + SchemeGroupVersion.String()
-	RepoGroupVersionKind = SchemeGroupVersion.WithKind(RepoKind)
+	PatchKind             = reflect.TypeOf(Patch{}).Name()
+	PatchGroupKind        = schema.GroupKind{Group: Group, Kind: PatchKind}.String()
+	PatchKindAPIVersion   = PatchKind + "." + SchemeGroupVersion.String()
+	PatchGroupVersionKind = SchemeGroupVersion.WithKind(PatchKind)
 )
 
 func init() {

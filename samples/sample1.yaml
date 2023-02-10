@@ -1,7 +1,7 @@
 apiVersion: krateo.io/v1alpha1
 kind: Patch
 metadata:
-  name: sample-1
+  name: sample1
 spec:
   from:
     objectReference:
