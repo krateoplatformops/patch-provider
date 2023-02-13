@@ -43,7 +43,7 @@ generate: tidy ## Generate all CRDs.
 
 .PHONY: dev
 dev: generate ## Run the controller in debug mode.
-	$(KUBECTL) apply -f chart/crds/ -R
+	$(KUBECTL) apply -f crds/ -R
 	go run cmd/main.go -d
 
 .PHONY: kind-up
