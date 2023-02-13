@@ -13,6 +13,8 @@ You’ll need a Kubernetes cluster to run against.
 
 1. Install the provider:
 
+> https://github.com/krateoplatformops/patch-provider-helm-chart
+
 ```sh
 $ helm repo add krateo https://charts.krateo.io
 $ helm repo update krateo
