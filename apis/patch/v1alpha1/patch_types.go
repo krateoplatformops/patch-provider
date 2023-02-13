@@ -23,6 +23,10 @@ type FieldObjectReference struct {
 
 	// +optional
 	FieldPath *string `json:"fieldPath,omitempty"`
+}
+
+type FieldObjectReferenceWithTransforms struct {
+	FieldObjectReference `json:",inline"`
 
 	// +optional
 	Transform *string `json:"transform,omitempty"`
@@ -39,7 +43,7 @@ type PatchSpec struct {
 
 	// To is the path of the field on the resource whose value will be changed.
 	// +optional
-	To *FieldObjectReference `json:"to,omitempty"`
+	To *FieldObjectReferenceWithTransforms `json:"to,omitempty"`
 
 	// MergeOptions specifies merge options on a field path.
 	// +optional

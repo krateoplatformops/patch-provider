@@ -111,7 +111,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	diff := cmp.Diff(in, out)
-	e.log.Debug("Computed drift", "diff", diff)
+	//e.log.Debug("Computed drift", "diff", diff)
 	if len(diff) == 0 {
 		return managed.ExternalObservation{
 			ResourceExists:   true,

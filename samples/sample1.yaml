@@ -18,3 +18,4 @@ spec:
       # namespace: default
     fieldPath: data.value
     transform: b64enc
+ 

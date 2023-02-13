@@ -73,8 +73,6 @@ spec:
                     - kind
                     - name
                     type: object
-                  transform:
-                    type: string
                 type: object
               mergeOptions:
                 description: MergeOptions specifies merge options on a field path.
