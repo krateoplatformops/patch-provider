@@ -4,7 +4,8 @@ metadata:
   name: foo
   namespace: default
 data:
-  value: Foo
+  value1: Foo1
+  value2: Foo2
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -12,4 +13,5 @@ metadata:
   name: bar
   namespace: default
 data:
-  value: Bar
+  value1: Bar1
+  value2: Bar2

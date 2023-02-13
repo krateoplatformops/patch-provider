@@ -9,15 +9,15 @@ spec:
       kind: ConfigMap
       name: foo
       # namespace: default
-    fieldPath: data.value
+    fieldPath: data
   to:
     objectReference:
       apiVersion: v1
       kind: ConfigMap
       name: bar
       # namespace: default
-    fieldPath: data.value
+    fieldPath: data.value2
     transforms:
-      - b64enc . 
+      - b64enc .value1
       - printf "prefix-%s"
  
