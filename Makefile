@@ -19,46 +19,47 @@ endif
 KIND=$(shell which kind)
 LINT=$(shell which golangci-lint)
 KUBECTL=$(shell which kubectl)
-SED=$(shell which sed)
+HELM=$(shell which helm)
+
 
 .DEFAULT_GOAL := help
 
-.PHONY: dev
-dev: generate ## run the controller in debug mode
-	$(KUBECTL) apply -f chart/crds/ -R
-	go run cmd/main.go -d
-
-.PHONY: generate
-generate: tidy ## generate all CRDs
-	go generate ./...
-
-.PHONY: tidy
-tidy: ## go mod tidy
-	go mod tidy
 
 .PHONY: test
-test: ## go test
+test: ## Run all the Go test
 	go test -v ./...
 
 .PHONY: lint
-lint: ## go lint
+lint: ## Check the Go coding conventions.
 	$(LINT) run
 
+.PHONY: tidy
+tidy: ## Ensure that all Go imports are satisfied.
+	go mod tidy
+
+.PHONY: generate
+generate: tidy ## Generate all CRDs.
+	go generate ./...
+
+.PHONY: dev
+dev: generate ## Run the controller in debug mode.
+	$(KUBECTL) apply -f chart/crds/ -R
+	go run cmd/main.go -d
+
 .PHONY: kind-up
-kind-up: ## starts a KinD cluster for local development
+kind-up: ## Starts a KinD cluster for local development.
 	@$(KIND) get kubeconfig --name $(KIND_CLUSTER_NAME) >/dev/null 2>&1 || $(KIND) create cluster --name=$(KIND_CLUSTER_NAME)
 
 .PHONY: kind-down
-kind-down: ## shuts down the KinD cluster
+kind-down: ## Shuts down the KinD cluster.
 	@$(KIND) delete cluster --name=$(KIND_CLUSTER_NAME)
 
-
-.PHONY: demo
-demo: ## Run the demo examples
-	@$(KUBECTL) create secret generic github-secret --from-literal=token=$(SAMPLE_TOKEN) || true
-	@$(KUBECTL) apply -f samples/demo-repo.yaml
-
+.PHONY: install 
+install: ## Install this provider using Helm
+	@$(HELM) repo add krateo https://charts.krateo.io
+	@$(HELM) repo update krateo
+	@$(HELM) install patch-provider krateo/patch-provider 
 
 .PHONY: help
-help: ## print this help
+help: ## Print this help.
 	@grep -E '^[a-zA-Z\._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
