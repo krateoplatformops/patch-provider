@@ -17,5 +17,7 @@ spec:
       name: bar
       # namespace: default
     fieldPath: data.value
-    transform: b64enc
+    transforms:
+      - b64enc . 
+      - printf "prefix-%s"
  

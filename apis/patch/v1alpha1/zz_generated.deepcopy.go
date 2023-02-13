@@ -54,10 +54,10 @@ func (in *FieldObjectReference) DeepCopy() *FieldObjectReference {
 func (in *FieldObjectReferenceWithTransforms) DeepCopyInto(out *FieldObjectReferenceWithTransforms) {
 	*out = *in
 	in.FieldObjectReference.DeepCopyInto(&out.FieldObjectReference)
-	if in.Transform != nil {
-		in, out := &in.Transform, &out.Transform
-		*out = new(string)
-		**out = **in
+	if in.Transforms != nil {
+		in, out := &in.Transforms, &out.Transforms
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 }
 

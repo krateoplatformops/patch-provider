@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/pkg/errors"
@@ -54,14 +55,15 @@ func resolveObjectReference(ctx context.Context, kc client.Client, ref *v1alpha1
 }
 
 func TransformEventually(cr *v1alpha1.Patch, input any) (any, error) {
-	fn := helpers.String(cr.Spec.To.Transform)
-	if len(fn) == 0 {
+	if len(cr.Spec.To.Transforms) == 0 {
 		return input, nil
 	}
 
+	fn := strings.Join(cr.Spec.To.Transforms, " | ")
+
 	buf := bytes.NewBufferString("")
 	tpl := template.New(cr.GetName()).Funcs(functions.Map())
-	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s . }}", fn))
+	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s }}", fn))
 	if err != nil {
 		return nil, err
 	}

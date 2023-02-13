@@ -106,8 +106,10 @@ spec:
                     - kind
                     - name
                     type: object
-                  transform:
-                    type: string
+                  transforms:
+                    items:
+                      type: string
+                    type: array
                 type: object
             type: object
           status:
