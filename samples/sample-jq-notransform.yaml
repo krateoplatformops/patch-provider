@@ -1,7 +1,7 @@
 apiVersion: krateo.io/v1alpha1
 kind: Patch
 metadata:
-  name: sample1
+  name: sample-notransform
 spec:
   from:
     objectReference:
@@ -16,6 +16,5 @@ spec:
       kind: ConfigMap
       name: bar
       # namespace: default
-    fieldPath: data.value1
-    transform: ${ .value2 | @base64 }
+    fieldPath: data
  

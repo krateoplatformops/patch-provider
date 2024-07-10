@@ -1,6 +1,7 @@
 package fieldpath
 
 import (
+	"reflect"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -97,6 +98,9 @@ func getValueFromInterface(it any, s Segments) (any, error) {
 				return nil, errNotFound{errors.Errorf("%s: no such field", s[:i+1])}
 			}
 			if final {
+				if reflect.TypeOf(v).Kind() == reflect.Int64 {
+					return int(v.(int64)), nil // safe to cast because k8s api uses int32 for encoding
+				}
 				return v, nil
 			}
 			it = object[current.Field]
@@ -322,6 +326,7 @@ func (p *Paved) setValue(s Segments, value any) error {
 	// marshal our value to JSON and unmarshal it into an any to ensure
 	// it meets these criteria before setting it within p.object.
 	var v any
+
 	j, err := json.Marshal(value)
 	if err != nil {
 		return errors.Wrap(err, "cannot marshal value to JSON")
@@ -361,6 +366,7 @@ func (p *Paved) setValue(s Segments, value any) error {
 			}
 
 			prepareField(object, current, s[i+1])
+
 			in = object[current.Field]
 		}
 	}

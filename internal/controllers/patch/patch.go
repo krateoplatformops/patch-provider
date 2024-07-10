@@ -16,7 +16,7 @@ import (
 	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"github.com/krateoplatformops/provider-runtime/pkg/logging"
 	"github.com/krateoplatformops/provider-runtime/pkg/ratelimiter"
-	"github.com/krateoplatformops/provider-runtime/pkg/reconciler/managed"
+	"github.com/krateoplatformops/provider-runtime/pkg/reconciler"
 	"github.com/krateoplatformops/provider-runtime/pkg/resource"
 
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
@@ -25,27 +25,27 @@ import (
 )
 
 const (
-	errNotPatch = "managed resource is not a Patch custom resource"
+	errNotPatch = "reconciler resource is not a Patch custom resource"
 )
 
-// Setup adds a controller that reconciles Token managed resources.
+// Setup adds a controller that reconciles Token reconciler resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.PatchGroupKind)
+	name := reconciler.ControllerName(v1alpha1.PatchGroupKind)
 
 	log := o.Logger.WithValues("controller", name)
 
 	recorder := mgr.GetEventRecorderFor(name)
 
-	r := managed.NewReconciler(mgr,
+	r := reconciler.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.PatchGroupVersionKind),
-		managed.WithExternalConnecter(&connector{
+		reconciler.WithExternalConnecter(&connector{
 			kube:     mgr.GetClient(),
 			log:      log,
 			recorder: recorder,
 		}),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithLogger(log),
-		managed.WithRecorder(event.NewAPIRecorder(recorder)))
+		reconciler.WithPollInterval(o.PollInterval),
+		reconciler.WithLogger(log),
+		reconciler.WithRecorder(event.NewAPIRecorder(recorder)))
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
@@ -60,7 +60,7 @@ type connector struct {
 	recorder record.EventRecorder
 }
 
-func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
+func (c *connector) Connect(ctx context.Context, mg resource.Managed) (reconciler.ExternalClient, error) {
 	return &external{
 		kube: c.kube,
 		log:  c.log,
@@ -74,52 +74,59 @@ type external struct {
 	rec  record.EventRecorder
 }
 
-func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+func (e *external) Observe(ctx context.Context, mg resource.Managed) (reconciler.ExternalObservation, error) {
 	cr, ok := mg.(*v1alpha1.Patch)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotPatch)
+		return reconciler.ExternalObservation{}, errors.New(errNotPatch)
+	}
+
+	if cr.GetDeletionTimestamp() != nil && cr.GetCondition(rtv1.TypeReady).Reason == rtv1.ReasonDeleting {
+		return reconciler.ExternalObservation{
+			ResourceExists:   false,
+			ResourceUpToDate: true,
+		}, nil
 	}
 
 	if cr.Spec.From.FieldPath == nil {
-		return managed.ExternalObservation{}, errors.New("from.fieldPath is required")
+		return reconciler.ExternalObservation{}, errors.New("from.fieldPath is required")
 	}
 
 	from, err := patching.From(ctx, e.kube, cr)
 	if err != nil {
-		return managed.ExternalObservation{}, resource.IgnoreNotFound(err)
+		return reconciler.ExternalObservation{}, resource.IgnoreNotFound(err)
 	}
 
 	to, err := patching.To(ctx, e.kube, cr)
 	if err != nil {
-		return managed.ExternalObservation{}, resource.IgnoreNotFound(err)
+		return reconciler.ExternalObservation{}, resource.IgnoreNotFound(err)
 	}
 
 	in, err := fieldpath.Pave(from.Object).GetValue(helpers.String(cr.Spec.From.FieldPath))
 	if err != nil {
-		return managed.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
+		return reconciler.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
 	}
 
 	if in, err = patching.TransformEventually(cr, in); err != nil {
-		return managed.ExternalObservation{}, err
+		return reconciler.ExternalObservation{}, err
 	}
 
 	// if 'to' fieldPath is not specified, use the same 'from' fieldPath.
 	toFieldPath := helpers.StringOrDefault(cr.Spec.To.FieldPath, helpers.String(cr.Spec.To.FieldPath))
 	out, err := fieldpath.Pave(to.Object).GetValue(toFieldPath)
 	if err != nil {
-		return managed.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
+		return reconciler.ExternalObservation{}, resource.Ignore(fieldpath.IsNotFound, err)
 	}
 
 	diff := cmp.Diff(in, out)
-	//e.log.Debug("Computed drift", "diff", diff)
 	if len(diff) == 0 {
-		return managed.ExternalObservation{
+		cr.SetConditions(rtv1.Available())
+		return reconciler.ExternalObservation{
 			ResourceExists:   true,
 			ResourceUpToDate: true,
 		}, nil
 	}
 
-	return managed.ExternalObservation{
+	return reconciler.ExternalObservation{
 		ResourceExists:   true,
 		ResourceUpToDate: false,
 	}, nil
@@ -139,6 +146,7 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) error {
 	if err != nil {
 		return err
 	}
+	cr.SetConditions(rtv1.Creating())
 
 	return patching.Apply(ctx, e.kube, obj)
 }

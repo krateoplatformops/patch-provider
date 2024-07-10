@@ -1,17 +1,14 @@
 package patching
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"strings"
-	"text/template"
+	"encoding/json"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/krateoplatformops/patch-provider/apis/patch/v1alpha1"
-	"github.com/krateoplatformops/patch-provider/internal/functions"
+	"github.com/krateoplatformops/patch-provider/internal/tmpl"
 	"github.com/krateoplatformops/provider-runtime/pkg/helpers"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,20 +51,46 @@ func resolveObjectReference(ctx context.Context, kc client.Client, ref *v1alpha1
 	return res, err
 }
 
+// func TransformEventually(cr *v1alpha1.Patch, input any) (any, error) {
+// 	if len(cr.Spec.To.Transforms) == 0 {
+// 		return input, nil
+// 	}
+
+// 	fn := strings.Join(cr.Spec.To.Transforms, " | ")
+
+// 	buf := bytes.NewBufferString("")
+// 	tpl := template.New(cr.GetName()).Funcs(functions.Map())
+// 	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s }}", fn))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	err = tpl.Execute(buf, input)
+// 	return buf.String(), err
+// }
+
 func TransformEventually(cr *v1alpha1.Patch, input any) (any, error) {
-	if len(cr.Spec.To.Transforms) == 0 {
+	if len(cr.Spec.To.Transform) == 0 {
 		return input, nil
 	}
 
-	fn := strings.Join(cr.Spec.To.Transforms, " | ")
-
-	buf := bytes.NewBufferString("")
-	tpl := template.New(cr.GetName()).Funcs(functions.Map())
-	tpl, err := tpl.Parse(fmt.Sprintf("{{ %s }}", fn))
+	tpl, err := tmpl.New("${", "}")
 	if err != nil {
 		return nil, err
 	}
 
-	err = tpl.Execute(buf, input)
-	return buf.String(), err
+	mapInput := make(map[string]any)
+
+	binput, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(binput, &mapInput)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := tpl.Execute(cr.Spec.To.Transform, mapInput)
+
+	return result, err
 }
