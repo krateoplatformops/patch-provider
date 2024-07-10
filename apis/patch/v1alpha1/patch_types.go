@@ -29,7 +29,7 @@ type FieldObjectReferenceWithTransforms struct {
 	FieldObjectReference `json:",inline"`
 
 	// +optional
-	Transforms []string `json:"transforms,omitempty"`
+	Transform string `json:"transform,omitempty"`
 }
 
 // PatchSpec defines the desired state of Patch

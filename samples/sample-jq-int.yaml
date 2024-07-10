@@ -1,7 +1,7 @@
 apiVersion: krateo.io/v1alpha1
 kind: Patch
 metadata:
-  name: sample1
+  name: sample-jq
 spec:
   from:
     objectReference:
@@ -12,10 +12,10 @@ spec:
     fieldPath: data
   to:
     objectReference:
-      apiVersion: v1
-      kind: ConfigMap
-      name: bar
+      apiVersion: apps/v1
+      kind: Deployment
+      name: nginx-deployment
       # namespace: default
-    fieldPath: data.value1
-    transform: ${ .value2 | @base64 }
+    fieldPath: spec.replicas
+    transform: ${ .replicas | tonumber }
  
